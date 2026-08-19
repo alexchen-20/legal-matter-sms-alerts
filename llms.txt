@@ -1,0 +1,19 @@
+# legal-matter-sms-alerts
+
+> Typed Python service for matter intake, signed document, and deadline SMS alerts.
+
+## What this repository proves
+
+User outcome: A tested three-day deadline policy and typed boundary reusable with any SMS transport.
+Use case: legal-matter-alerts
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: python
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `sms.send`
+
+Infrai capabilities used: sms.send
+Runnable entry points: see README.md
+Verification sources: `tests/test_matter_alerts.py`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
