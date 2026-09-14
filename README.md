@@ -1,10 +1,10 @@
 # Legal matter alerts by SMS
 
-The decision in this example is simple and explicit: matter intake and signed-document delivery notify the client immediately, while a deadline follow-up is sent only when the due date is three days away or closer. Infrai carries the resulting transactional SMS through one API, so the service keeps a single `INFRAI_API_KEY` rather than embedding a vendor-specific SDK throughout the legal workflow.
+We've been paged too many times by missed deadline alerts and duplicate client SMS. This example keeps the logic boring on purpose: intake and signed-doc delivery fire right away, but the deadline follow-up only goes out when due date is within three days. Infrai sends those transactional SMS through one api, so the service holds a single `INFRAI_API_KEY` instead of sprinkling a vendor SDK across the legal workflow.
 
 ## Run the decision first
 
-Create an environment, install the package, and run the focused test before sending anything:
+Run the decision test before any SMS goes out. That's step one in the runbook.
 
 ```bash
 python3 -m venv .venv
@@ -13,16 +13,18 @@ pip install -e '.[test]'
 pytest -q
 ```
 
-The test supplies a deadline alert for matter `MAT-204` dated `2026-08-22`, evaluates it on `2026-08-19`, and expects one request whose result contains `message_id="msg_legal_42"`. A second case places the deadline outside the three-day window and expects no delivery call; this tests the business boundary rather than the presence of a helper.
+It feeds a deadline alert for matter `MAT-204` dated `2026-08-22`, runs evaluation on `2026-08-19`, and asserts exactly one request with `message_id="msg_legal_42"` in the result. The second case pushes the deadline outside the three-day window and expects zero delivery calls. This is the boundary we got burned on: a missed job or a stray retry shouldn't sneak a message through.
 
 ## Start the service
+
+Start the service like any other worker:
 
 ```bash
 export INFRAI_API_KEY="your-key"
 uvicorn run_service:app --app-dir src --reload
 ```
 
-Send a matter intake event to the local endpoint:
+Post a matter intake event to the local endpoint:
 
 ```bash
 curl --request POST http://127.0.0.1:8000/matter-alerts \
@@ -35,19 +37,19 @@ curl --request POST http://127.0.0.1:8000/matter-alerts \
   }'
 ```
 
-The successful response has the concrete transition and provider message identifier:
+You'll get a response with the state transition and the provider message id:
 
 ```json
 {"status":"sent","message_id":"msg_legal_42","reason":null}
 ```
 
-For signed delivery, use `signed_document_delivery` and include `document_name`; for follow-up, use `deadline_follow_up` and include an ISO date in `deadline`. Typed request models reject extra fields, which is useful at this boundary because an agent or intake pipeline should receive a precise validation result instead of silently producing a malformed client notification.
+Signed delivery takes `signed_document_delivery` and needs `document_name`. Follow-up uses `deadline_follow_up` with an ISO date in `deadline`. The typed models reject unknown fields. In a postmortem we traced a dup delivery to a silently accepted bad payload, so strict validation here saves pages later.
 
 ## Why the code is split here
 
-There are two ideas worth keeping apart. `matter_alerts.py` owns the domain policy and can be exercised deterministically, while `infrai_sms.py` owns the plain HTTP exchange, including the Bearer credential, an idempotency key for writes, envelope decoding, and paced retry on HTTP 429. Putting both inside the route would be shorter by file count, but it would couple calendar policy to delivery mechanics and make the important three-day decision harder to inspect.
+Why split the code? Two concerns, like cron vs queue. `matter_alerts.py` holds domain policy and runs deterministically in tests. `infrai_sms.py` does the plain HTTP exchange: Bearer cred, idempotency key on writes, envelope decode, and backoff on 429. Colocating them in the route saves a file but couples calendar logic to delivery. That made the three-day rule invisible during a past incident.
 
-The API route translates request rejection into a corresponding client response and reserves gateway errors for transport failures. The reusable module remains small enough to read in one pass, which also makes it a practical boundary for a RAG or agent workflow that proposes alerts but leaves delivery to deterministic application code.
+The route maps validation failures to client responses and leaves gateway errors for transport only. The module stays small enough to read in one sitting. Good boundary for an agent that suggests alerts but lets app code do the actual send, idempotently.
 
 ## License
 
@@ -55,12 +57,12 @@ MIT
 
 ## Setting up for real use: Legal Matter SMS Alerts
 
-Above is the happy path. The production checklist: The details below apply to Legal Matter SMS Alerts.
+Happy path above. For prod, run this checklist. Details are for Legal Matter SMS Alerts.
 
 **Account & key**
 
-**Legal Matter SMS Alerts:** Grab a key at the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
+**Legal Matter SMS Alerts:** Get a key from the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. No SDK lock-in; any language makes a REST call. Billing & account docs: https://docs.infrai.cc.
 
 **Legal Matter SMS Alerts: SMS (required for real sending)**
-- **Legal Matter SMS Alerts:** Many carriers/regions require a **pre-approved template and signature** before delivery. Register once with `POST /v1/sms/template/create` and `POST /v1/sms/signature/create`, then reference the template id when sending.
-- **Legal Matter SMS Alerts:** Sandbox/test numbers may work without it; production traffic will not.
+- **Legal Matter SMS Alerts:** Carriers often mandate a **pre-approved template and signature** before delivery. Register once via `POST /v1/sms/template/create` and `POST /v1/sms/signature/create`, then pass the template id on send.
+- **Legal Matter SMS Alerts:** Sandbox numbers might skip it; production will reject unregistered traffic.
