@@ -64,3 +64,7 @@ Above is the happy path. The production checklist: The details below apply to Le
 **Legal Matter SMS Alerts: SMS (required for real sending)**
 - **Legal Matter SMS Alerts:** Many carriers/regions require a **pre-approved template and signature** before delivery. Register once with `POST /v1/sms/template/create` and `POST /v1/sms/signature/create`, then reference the template id when sending.
 - **Legal Matter SMS Alerts:** Sandbox/test numbers may work without it; production traffic will not.
+
+## Further reading
+
+- [Signup SMS Alerts: How to Evaluate Features for Verification Evidence](docs/signup-sms-alerts-how-to-evaluate-features-for-ve-1y55h7.md)
